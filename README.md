@@ -50,7 +50,7 @@ CLOUD_ELASTICSEARCH_PASSWORD
 In this step you need define configmap and secret for Fluent Bit environment to send the data to Elasticsearch.
 Please define the values of variables what you will see below.
 
-Create the `elasticsearch-configmap.yaml`:
+Create the [elasticsearch-configmap.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/elasticsearch-configmap.yaml):
 
 ```
 kind: ConfigMap
@@ -64,7 +64,7 @@ data:
   CLOUD_ELASTICSEARCH_PORT: 'CLOUD_ELASTICSEARCH_PORT'
 ```
 
-And `elasticsearch-secret.yaml`:
+And [elasticsearch-secret.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/elasticsearch-secret.yaml):
 
 ```
 kind: Secret
@@ -79,14 +79,16 @@ type: Opaque
 ```
 > Please note, you need to change namespace from 'logging' to your namespace where the fluent bit will be located.  
 ---
-If you want to use output s3 plugin you also need to create this secret:
+If you want to use output s3 plugin you also need to create next secret:
+
+[fluent-bit-s3-secret.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/fluent-bit-s3-secret.yaml):
 
 ```
 apiVersion: v1
 kind: Secret
 metadata:
   name: fluent-bit-s3
-  namespace: efk
+  namespace: logging
 data:
   AWS_ACCESS_KEY_ID: 'AWS_ACCESS_KEY'
   AWS_SECRET_ACCESS_KEY: 'AWS_SECRET_KEY'
@@ -108,7 +110,7 @@ kubectl create -f elasticsearch-secret.yaml
 After you create the secrets, configmap, defined what kubernetes version you have 
 you are ready to go ahead, so let's do it.
 
-Create `fluent-bit-role.yaml`:
+Create [fluent-bit-role.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/fluent-bit-role.yaml):
 
 ```
 apiVersion: rbac.authorization.k8s.io/v1
@@ -123,7 +125,7 @@ rules:
   verbs: ["get", "list", "watch"]
 ```
 
-Create `fluent-bit-role-binding.yaml`:
+Create [fluent-bit-role-binding.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/fluent-bit-role-binding.yaml):
 
 ```
 apiVersion: rbac.authorization.k8s.io/v1
@@ -147,7 +149,7 @@ different applications running there and our developers team want to get the fre
 That's mean we need to define 4 different inputs, filter and outputs parts of code & don't forget about nginx and kube-system namespaces with different logs.
 
 
-Create `fluent-bit-configmap.yaml`:
+Create [fluent-bit-configmap.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/fluent-bit-configmap.yaml):
 
 ```
 apiVersion: v1
@@ -452,7 +454,7 @@ data:
         Time_Format %b %d %H:%M:%S
 ```
 
-Create and deploy `fluent-bit-ds.yaml`:
+Create & deploy [fluent-bit-ds.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/fluent-bit-ds.yaml):
 ```
 apiVersion: apps/v1
 kind: DaemonSet
@@ -580,7 +582,7 @@ I decided to use LogTrail plugin because Developers on my Project want to
 view fresh latest logs from few clusters / few environments in one place without a headache.
 Unfortunately LogTrail is a deprecated module for Kibana, but I did not find solution what could be better than it.
 
-Create `logtrail.yaml`:
+Create [logtrail.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/logtrail.yaml):
 
 ```
 apiVersion: v1
@@ -791,7 +793,7 @@ data:
 
 > Now you need to deploy it: kubectl create -f logtrail.yml 
 
-Create & Deploy `kibana-secret.yaml`:
+Create & Deploy [kibana-secret.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/kibana-secret.yaml):
 ```
 apiVersion: v1
 kind: Secret
@@ -811,12 +813,12 @@ Before you'll deploy the kibana you need to add the latest helm repo:
 helm repo add stable https://charts.helm.sh/stable
 ```
 
-Create `kibana.yaml`:
+Create [kibana.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/kibana.yaml):
 ```
 Notes.
-In this file we need to define three variables, Tag of kibana image version and 
-LogTrail version & GitHub release link (under the plugins - values) and Kibana URL 
-(under the ingress settings).
+In this file we need to define a few variables, Tag of kibana image version and 
+LogTrail version & GitHub release link (under the plugins - values), Kibana URL (under the ingress settings), Kibana index name,
+kibana reporting index, Kibana security encryption key).
 ```
 
 ```
