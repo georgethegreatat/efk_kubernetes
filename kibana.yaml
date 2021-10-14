@@ -21,6 +21,12 @@ files:
   kibana.yml:
     server.basePath: /kibana
     server.rewriteBasePath: true
+    # Define your kibana index name
+    kibana.index: ".kibana-qa01"
+    # Define your reporting index name, if you would like to generate reports
+    xpack.reporting.index: ".kibana-reports-qa01"
+    # Define your security encryption key (32 symbols)
+    xpack.security.encryptionKey: "PDcmcVGhGrmhzfPQLJXBCv4jZ67q27sh"
 
 plugins:
   enabled: true
@@ -39,6 +45,7 @@ service:
 
 ingress:
   enabled: true
+  # Define your kibana's domain
   hosts:
     - kibana.my-domain.net
 

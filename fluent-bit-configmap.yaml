@@ -27,7 +27,7 @@ data:
   input-kubernetes.conf: |
     [INPUT]
         Name              tail
-        Tag               gold*
+        Tag               namespace1*
         Path              /var/log/containers/*_namespace1_*.log
         Parser            docker
         DB                /var/log/flb_namespace1.db
@@ -37,7 +37,7 @@ data:
         storage.type      filesystem
     [INPUT]
         Name              tail
-        Tag               amber*
+        Tag               namespace2*
         Path              /var/log/containers/*_namespace2_*.log
         Parser            docker
         DB                /var/log/flb_namespace2.db
@@ -47,7 +47,7 @@ data:
         storage.type      filesystem
     [INPUT]
         Name              tail
-        Tag               black*
+        Tag               namespace3*
         Path              /var/log/containers/*_namespace3_*.log
         Parser            docker
         DB                /var/log/flb_namespace3.db
@@ -57,7 +57,7 @@ data:
         storage.type      filesystem
     [INPUT]
         Name              tail
-        Tag               opal*
+        Tag               namespace4*
         Path              /var/log/containers/*_namespace4_*.log
         Parser            docker
         DB                /var/log/flb_namespace4.db
@@ -249,6 +249,15 @@ data:
         tls             On
         tls.verify      Off
         storage.total_limit_size 10M
+# This is output directly to S3 bucket, be sure you defined secret variables for it
+#    [OUTPUT]
+#        Name                         s3
+#        Match                        namespace1*
+#        bucket                       ${BUCKET}
+#        region                       ${REGION}
+#        total_file_size              250m
+#        s3_key_format                /namespace1/%Y/%m/%d/%H/%M/%S/$UUID.gz
+#        s3_key_format_tag_delimiters .-
   parsers.conf: |
     [PARSER]
         Name   apache

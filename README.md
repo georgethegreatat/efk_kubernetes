@@ -1,8 +1,13 @@
 # Elasticsearch Cloud & Fluent Bit & Kibana in Kubernetes
 
-Hi everyone. 
-Here I want to show you how to simply configure and deploy EFK
-stack on your Kubernetes cluster using Elastic Cloud as Elasticsearch vendor.
+Here you can find EFK configuration for Kubernetes cluster what is ready to use in production
+environments.
+
+# Updates
+
+UPD 14/10/2021:
+- Added Output s3 plugin configuration to Fluent-Bit
+
 
 ###### Versions
 ```
@@ -73,7 +78,25 @@ data:
 type: Opaque
 ```
 > Please note, you need to change namespace from 'logging' to your namespace where the fluent bit will be located.  
+---
+If you want to use output s3 plugin you also need to create this secret:
 
+```
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fluent-bit-s3
+  namespace: efk
+data:
+  AWS_ACCESS_KEY_ID: 'AWS_ACCESS_KEY'
+  AWS_SECRET_ACCESS_KEY: 'AWS_SECRET_KEY'
+  REGION: 'AWS_REGION'
+  BUCKET: 'AWS_S3_BUCKET'
+type: Opaque
+
+# Add this secret only if you woult like to use output s3 plugin.
+```
+---
 Great! Now you can apply this configuration using next commands:
 ```
 kubectl create -f elasticsearch-configmap.yaml
@@ -156,7 +179,7 @@ data:
   input-kubernetes.conf: |
     [INPUT]
         Name              tail
-        Tag               gold*
+        Tag               namespace1*
         Path              /var/log/containers/*_namespace1_*.log
         Parser            docker
         DB                /var/log/flb_namespace1.db
@@ -166,7 +189,7 @@ data:
         storage.type      filesystem
     [INPUT]
         Name              tail
-        Tag               amber*
+        Tag               namespace2*
         Path              /var/log/containers/*_namespace2_*.log
         Parser            docker
         DB                /var/log/flb_namespace2.db
@@ -176,7 +199,7 @@ data:
         storage.type      filesystem
     [INPUT]
         Name              tail
-        Tag               black*
+        Tag               namespace3*
         Path              /var/log/containers/*_namespace3_*.log
         Parser            docker
         DB                /var/log/flb_namespace3.db
@@ -186,7 +209,7 @@ data:
         storage.type      filesystem
     [INPUT]
         Name              tail
-        Tag               opal*
+        Tag               namespace4*
         Path              /var/log/containers/*_namespace4_*.log
         Parser            docker
         DB                /var/log/flb_namespace4.db
@@ -378,6 +401,15 @@ data:
         tls             On
         tls.verify      Off
         storage.total_limit_size 10M
+# This is output directly to S3 bucket, be sure you defined secret variables for it
+#    [OUTPUT]
+#        Name                         s3
+#        Match                        namespace1*
+#        bucket                       ${BUCKET}
+#        region                       ${REGION}
+#        total_file_size              250m
+#        s3_key_format                /namespace1/%Y/%m/%d/%H/%M/%S/$UUID.gz
+#        s3_key_format_tag_delimiters .-
   parsers.conf: |
     [PARSER]
         Name   apache
@@ -422,11 +454,11 @@ data:
 
 Create and deploy `fluent-bit-ds.yaml`:
 ```
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: fluent-bit
-  namespace: logging
+  namespace: efk
   labels:
     k8s-app: fluent-bit-logging
     version: v1
@@ -448,7 +480,7 @@ spec:
     spec:
       containers:
       - name: fluent-bit
-        image: fluent/fluent-bit:1.8
+        image: fluent/fluent-bit:1.8.5
         imagePullPolicy: Always
         ports:
           - containerPort: 2020
@@ -478,6 +510,27 @@ spec:
             secretKeyRef:
               name: elasticsearch-secret
               key: CLOUD_ELASTICSEARCH_PASSWORD
+  # Secret variables section for output s3 plugin.            
+  #      - name: AWS_ACCESS_KEY_ID
+  #        valueFrom:
+  #          secretKeyRef:
+  #            name: fluent-bit-s3
+  #            key: AWS_ACCESS_KEY_ID
+  #      - name: AWS_SECRET_ACCESS_KEY
+  #        valueFrom:
+  #          secretKeyRef:
+  #            name: fluent-bit-s3
+  #            key: AWS_SECRET_ACCESS_KEY
+  #      - name: REGION
+  #        valueFrom:
+  #          secretKeyRef:
+  #            name: fluent-bit-s3
+  #            key: REGION
+  #      - name: BUCKET
+  #        valueFrom:
+  #          secretKeyRef:
+  #            name: fluent-bit-s3
+  #            key: BUCKET
         volumeMounts:
         - name: varlog
           mountPath: /var/log
@@ -772,7 +825,7 @@ image:
   tag: 7.9.2
   pullPolicy: IfNotPresent
 
-envFromSecrets: 
+envFromSecrets:
   ELASTICSEARCH_USERNAME:
      from:
       secret: kibana-secrets
@@ -785,12 +838,17 @@ envFromSecrets:
      from:
       secret: kibana-secrets
       key: ELASTICSEARCH_HOSTS
-      
-# Uncommit and define your kibana basePath if it's needed
+
 files:
   kibana.yml:
     server.basePath: /kibana
     server.rewriteBasePath: true
+    # Define your kibana index name
+    kibana.index: ".kibana-qa01"
+    # Define your reporting index name, if you would like to generate reports
+    xpack.reporting.index: ".kibana-reports-qa01"
+    # Define your security encryption key (32 symbols)
+    xpack.security.encryptionKey: "PDcmcVGhGrmhzfPQLJXBCv4jZ67q27sh"
 
 plugins:
   enabled: true
@@ -808,9 +866,10 @@ service:
   internalPort: 5601
 
 ingress:
-  enabled: true        
+  enabled: true
+  # Define your kibana's domain
   hosts:
-    - kibana.my-domain.net 
+    - kibana.my-domain.net
 
 podAnnotations:
   filebeat_logs: "false"
@@ -841,6 +900,5 @@ helm install \
 ### Step #5. Create index patterns in Kibana
 
 Open your Kibana url, go to the Stack Management → Kibana → Index Patterns → Create index pattern
-
 and create your patterns, for example: `namespace1-*`, `namespace2-*`, `namespace3-*`, `namespace4-*`, `nginx-*` and `kube-system-*`
 

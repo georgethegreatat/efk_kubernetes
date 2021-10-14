@@ -1,8 +1,8 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: fluent-bit
-  namespace: logging
+  namespace: efk
   labels:
     k8s-app: fluent-bit-logging
     version: v1
@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
       - name: fluent-bit
-        image: fluent/fluent-bit:1.8
+        image: fluent/fluent-bit:1.8.5
         imagePullPolicy: Always
         ports:
           - containerPort: 2020
@@ -54,6 +54,27 @@ spec:
             secretKeyRef:
               name: elasticsearch-secret
               key: CLOUD_ELASTICSEARCH_PASSWORD
+  # Secret variables section for output s3 plugin.
+  #      - name: AWS_ACCESS_KEY_ID
+  #        valueFrom:
+  #          secretKeyRef:
+  #            name: fluent-bit-s3
+  #            key: AWS_ACCESS_KEY_ID
+  #      - name: AWS_SECRET_ACCESS_KEY
+  #        valueFrom:
+  #          secretKeyRef:
+  #            name: fluent-bit-s3
+  #            key: AWS_SECRET_ACCESS_KEY
+  #      - name: REGION
+  #        valueFrom:
+  #          secretKeyRef:
+  #            name: fluent-bit-s3
+  #            key: REGION
+  #      - name: BUCKET
+  #        valueFrom:
+  #          secretKeyRef:
+  #            name: fluent-bit-s3
+  #            key: BUCKET
         volumeMounts:
         - name: varlog
           mountPath: /var/log
