@@ -1,8 +1,8 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: logtrail-config
-  namespace: infra-monitoring
+  name: logtrail-config # Define your logtrail configmap name and change it (if needed in kabana.yml)
+  namespace: logging # change namespace to yours
 data:
   logtrail.json: |
     {
@@ -22,11 +22,12 @@ data:
           "max_events_to_keep_in_viewer": 5000,
           "default_search": "",
           "fields": {
-            "message_format": "{{{log}}}",
+            "message_format": "{{{Level}}} | {{{log}}}",        ##### By replacing "{{{log}}}" to "{{{Level}}} | {{{log}}}" you will be able to filtering your log messages by clicking on LogLevel (WARN, INFO, DEBUG, ERROR in you enable this feature in filter's settings
             "mapping": {
                 "timestamp": "@timestamp",
                 "hostname": "kubernetes.labels.app",
-                "program": "kubernetes.pod_name",
+                "program": "kubernetes.pod_name",               ##### Same as above
+                "level": "Level",
                 "message": "log"
             }
           },

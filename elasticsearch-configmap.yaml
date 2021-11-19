@@ -2,7 +2,7 @@ kind: ConfigMap
 apiVersion: v1
 metadata:
   name: elasticsearch-configmap
-  namespace: logging
+  namespace: logging # change namespace to yours
 data:
   CLOUD_ELASTICSEARCH_ID: 'CLOUD_ELASTICSEARCH_ID'
   CLOUD_ELASTICSEARCH_HOST: 'CLOUD_ELASTICSEARCH_HOST'

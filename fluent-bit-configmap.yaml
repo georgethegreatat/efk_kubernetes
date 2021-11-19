@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: fluent-bit-config
-  namespace: logging
+  namespace: logging # change namespace to yours
   labels:
     k8s-app: fluent-bit
 data:
@@ -20,7 +20,8 @@ data:
         storage.path              /var/log/flb-storage/
         storage.sync              normal
         storage.checksum          off
-        storage.backlog.mem_limit 10M
+        storage.max_chunks_up     256
+
     @INCLUDE input-kubernetes.conf
     @INCLUDE filter-kubernetes.conf
     @INCLUDE output-elasticsearch.conf
@@ -34,7 +35,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
     [INPUT]
         Name              tail
         Tag               namespace2*
@@ -44,7 +44,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
     [INPUT]
         Name              tail
         Tag               namespace3*
@@ -54,17 +53,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
-    [INPUT]
-        Name              tail
-        Tag               namespace4*
-        Path              /var/log/containers/*_namespace4_*.log
-        Parser            docker
-        DB                /var/log/flb_namespace4.db
-        Mem_Buf_Limit     10MB
-        Skip_Long_Lines   On
-        Refresh_Interval  10
-        storage.type      filesystem
     [INPUT]
         Name              tail
         Tag               nginx*
@@ -74,7 +62,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
     [INPUT]
         Name              tail
         Tag               kube-system*
@@ -84,7 +71,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
   filter-kubernetes.conf: |
     [FILTER]
         Name                kubernetes
@@ -99,6 +85,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               namespace2*
@@ -112,6 +99,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               namespace3*
@@ -125,6 +113,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               namespace4*
@@ -138,6 +127,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               nginx*
@@ -151,6 +141,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               kube-system*
@@ -164,6 +155,49 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
+    #  The next filters gonna add the new key:value paar in to your log message with LogLevel (parsing ERROR/WARN/DEBU/INFO words from log)
+    [FILTER]
+        Name        modify
+        Alias       handle_levels_uppercase_error_modify
+        Match       your_index_where_to_add*
+        Condition   Key_value_matches                               log               (?i:DEBU\w*)
+        Set         Level                                           DEBUG
+        # Make sure we don't re-match it
+        Condition   Key_value_does_not_equal                        __temp_level_fixed  Y
+        Set         __temp_level_fixed                              Y
+    [FILTER]
+        Name        modify
+        Alias       handle_levels_uppercase_error_modify
+        Match       your_index_where_to_add*
+        Condition   Key_value_matches                               log               (?i:INFO\w*)
+        Set         Level                                           INFO
+        # Make sure we don't re-match it
+        Condition   Key_value_does_not_equal                        __temp_level_fixed  Y
+        Set         __temp_level_fixed                              Y
+    [FILTER]
+        Name        modify
+        Alias       handle_levels_uppercase_error_modify
+        Match       your_index_where_to_add*
+        Condition   Key_value_matches                               log               (?i:ERR\w*)
+        Set         Level                                           ERROR
+        # Make sure we don't re-match it
+        Condition   Key_value_does_not_equal                        __temp_level_fixed  Y
+        Set         __temp_level_fixed                              Y
+    [FILTER]
+        Name        modify
+        Alias       handle_levels_uppercase_error_modify
+        Match       your_index_where_to_add*
+        Condition   Key_value_matches                               log               (?i:WARN\w*)
+        Set         Level                                           WARN
+        # Make sure we don't re-match it
+        Condition   Key_value_does_not_equal                        __temp_level_fixed  Y
+        Set         __temp_level_fixed                              Y
+    [FILTER]
+        Name           modify
+        Alias          handle_levels_remove_temp_vars_modify
+        Match          ign-stage*
+        Remove_regex   __temp_.+
   output-elasticsearch.conf: |
     [OUTPUT]
         Name            es
@@ -178,7 +212,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           namespace2*
@@ -192,7 +227,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           namespace3*
@@ -206,7 +242,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           namespace4*
@@ -220,7 +257,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           nginx*
@@ -234,7 +272,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           kube-system*
@@ -248,7 +287,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
 # This is output directly to S3 bucket, be sure you defined secret variables for it
 #    [OUTPUT]
 #        Name                         s3
@@ -258,6 +298,7 @@ data:
 #        total_file_size              250m
 #        s3_key_format                /namespace1/%Y/%m/%d/%H/%M/%S/$UUID.gz
 #        s3_key_format_tag_delimiters .-
+#        Trace_Error     on
   parsers.conf: |
     [PARSER]
         Name   apache
@@ -265,33 +306,39 @@ data:
         Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
         Time_Key time
         Time_Format %d/%b/%Y:%H:%M:%S %z
+
     [PARSER]
         Name   apache2
         Format regex
         Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^ ]*) +\S*)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
         Time_Key time
         Time_Format %d/%b/%Y:%H:%M:%S %z
+
     [PARSER]
         Name   apache_error
         Format regex
         Regex  ^\[[^ ]* (?<time>[^\]]*)\] \[(?<level>[^\]]*)\](?: \[pid (?<pid>[^\]]*)\])?( \[client (?<client>[^\]]*)\])? (?<message>.*)$
+
     [PARSER]
         Name   nginx
         Format regex
         Regex ^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
         Time_Key time
         Time_Format %d/%b/%Y:%H:%M:%S %z
+
     [PARSER]
         Name   json
         Format json
         Time_Key time
         Time_Format %d/%b/%Y:%H:%M:%S %z
+
     [PARSER]
         Name        docker
         Format      json
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
+
     [PARSER]
         Name        syslog
         Format      regex
