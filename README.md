@@ -1,3 +1,6 @@
+![Blank diagram](https://user-images.githubusercontent.com/64360819/142641297-cd033236-01ef-4ed7-968a-93cc2c9467bc.png)
+
+
 # Elasticsearch Cloud & Fluent Bit & Kibana in Kubernetes
 
 In this repo you can find latest actual EFK stack configuration to get the logs from pre-defined namespaces in Kubernetes cluster, filter 
