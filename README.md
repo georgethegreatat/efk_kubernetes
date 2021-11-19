@@ -1,9 +1,19 @@
 # Elasticsearch Cloud & Fluent Bit & Kibana in Kubernetes
 
-Here you can find EFK configuration for Kubernetes cluster what is ready to use in production
-environments.
+In this repo you can find latest actual EFK stack configuration to get the logs from pre-defined namespaces in Kubernetes cluster, filter 
+and parse it as you wish and send it to different outputs (elasticsearch, s3 in my case).
+This solution is just an example what can guarantee stable logging and processing your logs from Kubernetes to any place as you need in 
+your specific case.
 
 # Updates
+
+UPD 19/11/2021 -- Release v0.7.0:
+- Added new filters for filtering logs to contain "ERROR/WARN/DEBUG/INFO" messages, and if it's exist add new key:value (Level:LogLevel)
+to log body
+- Updated fluentbit memory buffer configuration. Now fluentbit using RAM memory as temporary storage for the logs
+- Updated fluentbit image version (v1.8.8 -> 1.8.9)
+- Added new feature to LogTrail (filtering messages by LogLevel by clicking on it in Log Stream)
+- Added "xpack.encryptedSavedObjects.encryptionKey" key to recommended configuration in kibana.yml (If you'll define it you'll be able to use Kibana Alerts)
 
 UPD 14/10/2021:
 - Added Output s3 plugin configuration to Fluent-Bit
@@ -103,6 +113,7 @@ Great! Now you can apply this configuration using next commands:
 ```
 kubectl create -f elasticsearch-configmap.yaml
 kubectl create -f elasticsearch-secret.yaml
+kubectl create -f fluent-bit-s3-secret.yaml
 ```
 
 ### Step #3. Fluent Bit Deployment
@@ -156,7 +167,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: fluent-bit-config
-  namespace: logging
+  namespace: logging # change namespace to yours
   labels:
     k8s-app: fluent-bit
 data:
@@ -174,7 +185,8 @@ data:
         storage.path              /var/log/flb-storage/
         storage.sync              normal
         storage.checksum          off
-        storage.backlog.mem_limit 10M
+        storage.max_chunks_up     256
+
     @INCLUDE input-kubernetes.conf
     @INCLUDE filter-kubernetes.conf
     @INCLUDE output-elasticsearch.conf
@@ -188,7 +200,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
     [INPUT]
         Name              tail
         Tag               namespace2*
@@ -198,7 +209,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
     [INPUT]
         Name              tail
         Tag               namespace3*
@@ -208,17 +218,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
-    [INPUT]
-        Name              tail
-        Tag               namespace4*
-        Path              /var/log/containers/*_namespace4_*.log
-        Parser            docker
-        DB                /var/log/flb_namespace4.db
-        Mem_Buf_Limit     10MB
-        Skip_Long_Lines   On
-        Refresh_Interval  10
-        storage.type      filesystem
     [INPUT]
         Name              tail
         Tag               nginx*
@@ -228,7 +227,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
     [INPUT]
         Name              tail
         Tag               kube-system*
@@ -238,7 +236,6 @@ data:
         Mem_Buf_Limit     10MB
         Skip_Long_Lines   On
         Refresh_Interval  10
-        storage.type      filesystem
   filter-kubernetes.conf: |
     [FILTER]
         Name                kubernetes
@@ -253,6 +250,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               namespace2*
@@ -266,6 +264,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               namespace3*
@@ -279,6 +278,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               namespace4*
@@ -292,6 +292,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               nginx*
@@ -305,6 +306,7 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
     [FILTER]
         Name                kubernetes
         Match               kube-system*
@@ -318,6 +320,49 @@ data:
         K8S-Logging.Exclude Off
         Annotations         Off
         Labels              On
+        Buffer_Size         10M
+    #  The next filters gonna add the new key:value paar in to your log message with LogLevel (parsing ERROR/WARN/DEBU/INFO words from log)
+    [FILTER]
+        Name        modify
+        Alias       handle_levels_uppercase_error_modify
+        Match       your_index_where_to_add*
+        Condition   Key_value_matches                               log               (?i:DEBU\w*)
+        Set         Level                                           DEBUG
+        # Make sure we don't re-match it
+        Condition   Key_value_does_not_equal                        __temp_level_fixed  Y
+        Set         __temp_level_fixed                              Y
+    [FILTER]
+        Name        modify
+        Alias       handle_levels_uppercase_error_modify
+        Match       your_index_where_to_add*
+        Condition   Key_value_matches                               log               (?i:INFO\w*)
+        Set         Level                                           INFO
+        # Make sure we don't re-match it
+        Condition   Key_value_does_not_equal                        __temp_level_fixed  Y
+        Set         __temp_level_fixed                              Y
+    [FILTER]
+        Name        modify
+        Alias       handle_levels_uppercase_error_modify
+        Match       your_index_where_to_add*
+        Condition   Key_value_matches                               log               (?i:ERR\w*)
+        Set         Level                                           ERROR
+        # Make sure we don't re-match it
+        Condition   Key_value_does_not_equal                        __temp_level_fixed  Y
+        Set         __temp_level_fixed                              Y
+    [FILTER]
+        Name        modify
+        Alias       handle_levels_uppercase_error_modify
+        Match       your_index_where_to_add*
+        Condition   Key_value_matches                               log               (?i:WARN\w*)
+        Set         Level                                           WARN
+        # Make sure we don't re-match it
+        Condition   Key_value_does_not_equal                        __temp_level_fixed  Y
+        Set         __temp_level_fixed                              Y
+    [FILTER]
+        Name           modify
+        Alias          handle_levels_remove_temp_vars_modify
+        Match          ign-stage*
+        Remove_regex   __temp_.+
   output-elasticsearch.conf: |
     [OUTPUT]
         Name            es
@@ -332,7 +377,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           namespace2*
@@ -346,7 +392,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           namespace3*
@@ -360,7 +407,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           namespace4*
@@ -374,7 +422,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           nginx*
@@ -388,7 +437,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
     [OUTPUT]
         Name            es
         Match           kube-system*
@@ -402,7 +452,8 @@ data:
         Retry_Limit     False
         tls             On
         tls.verify      Off
-        storage.total_limit_size 10M
+        Trace_Error     on
+        Buffer_Size     10M
 # This is output directly to S3 bucket, be sure you defined secret variables for it
 #    [OUTPUT]
 #        Name                         s3
@@ -412,46 +463,22 @@ data:
 #        total_file_size              250m
 #        s3_key_format                /namespace1/%Y/%m/%d/%H/%M/%S/$UUID.gz
 #        s3_key_format_tag_delimiters .-
+#        Trace_Error     on
   parsers.conf: |
-    [PARSER]
-        Name   apache
-        Format regex
-        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
-        Time_Key time
-        Time_Format %d/%b/%Y:%H:%M:%S %z
-    [PARSER]
-        Name   apache2
-        Format regex
-        Regex  ^(?<host>[^ ]*) [^ ]* (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^ ]*) +\S*)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
-        Time_Key time
-        Time_Format %d/%b/%Y:%H:%M:%S %z
-    [PARSER]
-        Name   apache_error
-        Format regex
-        Regex  ^\[[^ ]* (?<time>[^\]]*)\] \[(?<level>[^\]]*)\](?: \[pid (?<pid>[^\]]*)\])?( \[client (?<client>[^\]]*)\])? (?<message>.*)$
+
     [PARSER]
         Name   nginx
         Format regex
         Regex ^(?<remote>[^ ]*) (?<host>[^ ]*) (?<user>[^ ]*) \[(?<time>[^\]]*)\] "(?<method>\S+)(?: +(?<path>[^\"]*?)(?: +\S*)?)?" (?<code>[^ ]*) (?<size>[^ ]*)(?: "(?<referer>[^\"]*)" "(?<agent>[^\"]*)")?$
         Time_Key time
         Time_Format %d/%b/%Y:%H:%M:%S %z
-    [PARSER]
-        Name   json
-        Format json
-        Time_Key time
-        Time_Format %d/%b/%Y:%H:%M:%S %z
+
     [PARSER]
         Name        docker
         Format      json
         Time_Key    time
         Time_Format %Y-%m-%dT%H:%M:%S.%L
         Time_Keep   On
-    [PARSER]
-        Name        syslog
-        Format      regex
-        Regex       ^\<(?<pri>[0-9]+)\>(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\/\.\-]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
-        Time_Key    time
-        Time_Format %b %d %H:%M:%S
 ```
 
 Create & deploy [fluent-bit-ds.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/fluent-bit-ds.yaml):
@@ -460,7 +487,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: fluent-bit
-  namespace: efk
+  namespace: logging # change namespace to yours
   labels:
     k8s-app: fluent-bit-logging
     version: v1
@@ -482,7 +509,7 @@ spec:
     spec:
       containers:
       - name: fluent-bit
-        image: fluent/fluent-bit:1.8.5
+        image: fluent/fluent-bit:1.8.9
         imagePullPolicy: Always
         ports:
           - containerPort: 2020
@@ -512,7 +539,7 @@ spec:
             secretKeyRef:
               name: elasticsearch-secret
               key: CLOUD_ELASTICSEARCH_PASSWORD
-  # Secret variables section for output s3 plugin.            
+  # Secret variables section for output s3 plugin.
   #      - name: AWS_ACCESS_KEY_ID
   #        valueFrom:
   #          secretKeyRef:
@@ -588,8 +615,8 @@ Create [logtrail.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/m
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: logtrail-config
-  namespace: infra-monitoring
+  name: logtrail-config # Define your logtrail configmap name and change it (if needed in kabana.yml)
+  namespace: logging # change namespace to yours
 data:
   logtrail.json: |
     {
@@ -609,11 +636,12 @@ data:
           "max_events_to_keep_in_viewer": 5000,
           "default_search": "",
           "fields": {
-            "message_format": "{{{log}}}",
+            "message_format": "{{{Level}}} | {{{log}}}",        ##### By replacing "{{{log}}}" to "{{{Level}}} | {{{log}}}" you will be able to filtering your log messages by clicking on LogLevel (WARN, INFO, DEBUG, ERROR in you enable this feature in filter's settings
             "mapping": {
                 "timestamp": "@timestamp",
                 "hostname": "kubernetes.labels.app",
-                "program": "kubernetes.pod_name",
+                "program": "kubernetes.pod_name",               ##### Same as above
+                "level": "Level",
                 "message": "log"
             }
           },
@@ -824,7 +852,7 @@ kibana reporting index, Kibana security encryption key).
 ```
 image:
   repository: kibana
-  tag: 7.9.2
+  tag: 7.9.2 # Define your Kibana version (be careful, logtail working only up to 7.9.2 Kibana version)
   pullPolicy: IfNotPresent
 
 envFromSecrets:
@@ -843,6 +871,7 @@ envFromSecrets:
 
 files:
   kibana.yml:
+    # Define your kibana URI if it's needed     
     server.basePath: /kibana
     server.rewriteBasePath: true
     # Define your kibana index name
@@ -851,10 +880,12 @@ files:
     xpack.reporting.index: ".kibana-reports-qa01"
     # Define your security encryption key (32 symbols)
     xpack.security.encryptionKey: "PDcmcVGhGrmhzfPQLJXBCv4jZ67q27sh"
+    # Define your security saved objects encryption key (to enable alerts) (32 symbols)
+    xpack.encryptedSavedObjects.encryptionKey: "hdSrZWFudR536q4NvAFz3JsXU5h12bff"
 
 plugins:
   enabled: true
-  values:
+  values: # Define your LogTrail plugin version (depends on Kibana version)
     - logtrail,0.1.31,https://github.com/sivasamyk/logtrail/releases/download/v0.1.31/logtrail-7.9.2-0.1.31.zip
 
 extraConfigMapMounts:
