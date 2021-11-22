@@ -124,7 +124,7 @@ kubectl create -f fluent-bit-s3-secret.yaml
 After you create the secrets, configmap, defined what kubernetes version you have 
 you are ready to go ahead, so let's do it.
 
-Create [fluent-bit-service-account.yaml]()
+Create [fluent-bit-service-account.yaml](https://github.com/georgethegreatat/efk_kubernetes/blob/main/fluent-bit-service-account.yaml)
 
 ```
 apiVersion: v1
